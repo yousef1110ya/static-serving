@@ -1,0 +1,164 @@
+# ============================================================
+# Namespace
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: static-server
+
+---
+# ============================================================
+# PersistentVolumeClaim — files survive pod restarts
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: static-files-pvc
+  namespace: static-server
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: standard   # uncomment and set to your storage class if needed
+
+---
+# ============================================================
+# Deployment
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: static-server
+  namespace: static-server
+  labels:
+    app: static-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: static-server
+  template:
+    metadata:
+      labels:
+        app: static-server
+    spec:
+      containers:
+        - name: static-server
+          image: your-registry/static-server:latest   # <-- replace with your image
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+            - name: api
+              containerPort: 8080
+          volumeMounts:
+            - name: files
+              mountPath: /srv/files
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: files
+          persistentVolumeClaim:
+            claimName: static-files-pvc
+
+---
+# ============================================================
+# Service — public HTTP (port 80, via Ingress)
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: static-server-http
+  namespace: static-server
+spec:
+  selector:
+    app: static-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+
+---
+# ============================================================
+# Service — internal API only (port 8080, ClusterIP)
+# Never exposed publicly via Ingress
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: static-server-api
+  namespace: static-server
+spec:
+  type: ClusterIP
+  selector:
+    app: static-server
+  ports:
+    - name: api
+      port: 8080
+      targetPort: 8080
+
+---
+# ============================================================
+# Ingress — public domain → port 80 only
+# ============================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: static-server-ingress
+  namespace: static-server
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"   # allow larger file uploads via API if needed
+spec:
+  ingressClassName: nginx   # <-- adjust to your ingress class
+  tls:
+    - hosts:
+        - yourdomain.com   # <-- replace with your domain
+      secretName: static-server-tls
+  rules:
+    - host: yourdomain.com   # <-- replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: static-server-http
+                port:
+                  number: 80
+
+---
+# ============================================================
+# Certificate (cert-manager) — auto TLS for your domain
+# Requires cert-manager installed in the cluster
+# ============================================================
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: static-server-cert
+  namespace: static-server
+spec:
+  secretName: static-server-tls
+  issuerRef:
+    name: selfsigned-issuer   
+    kind: ClusterIssuer
+  dnsNames:
+    - yourdomain.com   # <-- replace with your domain
