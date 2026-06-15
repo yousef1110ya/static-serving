@@ -37,6 +37,11 @@ data:
     server {
       listen 80;
 
+      location /health {
+        return 200 'ok';
+        add_header Content-Type text/plain;
+      }
+
       location /files/ {
         alias /srv/files/;
         default_type text/plain;
@@ -92,17 +97,17 @@ spec:
               memory: 128Mi
           livenessProbe:
             httpGet:
-              path: /files/
+              path: /health
               port: 80
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /files/
+              path: /health
               port: 80
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 5
-      volumes:
+      volumes:                          # <-- same level as containers
         - name: files
           persistentVolumeClaim:
             claimName: static-files-pvc

@@ -17,15 +17,15 @@ is the nginx configs to serve the files over http on port 80 .
 
 ## commands used 
 ```bash
-# Upload a file
-curl -X POST http://localhost:8080/hello.md  --data-binary @hello.md
+# Upload
+curl -k -X POST https://<URL>/api/hello.md --data-binary @hello.md
 
-# Delete a file
-curl -X DELETE http://localhost:8080/hello.md
+# Delete
+curl -k -X DELETE https://<URL>/api/hello.md
 
-# List files
-curl http://localhost:8080/
+# List
+curl -k https://<URL>/api/
 
-# View the file via Nginx
-curl http://localhost:80/hello.md
+# View
+curl -k https://<URL>/files/hello.md
 ```
