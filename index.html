@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docs Viewer</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.5.1/github-markdown.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+    }
+
+    /* ── Top bar ── */
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header svg { color: #8b949e; flex-shrink: 0; }
+    header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e6edf3;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    header span {
+      font-size: 12px;
+      color: #8b949e;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      padding: 2px 10px;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px;
+      gap: 24px;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 240px;
+      flex-shrink: 0;
+    }
+    .sidebar-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+      position: sticky;
+      top: 72px;
+    }
+    .sidebar-card h2 {
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #30363d;
+      background: #0d1117;
+    }
+    #file-list { list-style: none; }
+    #file-list li a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      font-size: 13px;
+      color: #c9d1d9;
+      text-decoration: none;
+      border-bottom: 1px solid #21262d;
+      transition: background 0.1s;
+    }
+    #file-list li a:hover { background: #21262d; }
+    #file-list li a.active {
+      background: #1f3a5f;
+      color: #58a6ff;
+      font-weight: 500;
+    }
+    #file-list li a svg { flex-shrink: 0; opacity: 0.5; }
+    .file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #file-list li:last-child a { border-bottom: none; }
+
+    /* ── Main content ── */
+    main { flex: 1; min-width: 0; }
+
+    .content-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .content-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid #30363d;
+      background: #0d1117;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .content-header span {
+      font-size: 13px;
+      font-weight: 500;
+      color: #e6edf3;
+      flex: 1;
+    }
+    .content-header a {
+      font-size: 12px;
+      color: #58a6ff;
+      text-decoration: none;
+    }
+    .content-header a:hover { text-decoration: underline; }
+
+    /* GitHub markdown dark overrides */
+    .markdown-body {
+      padding: 32px 40px;
+      font-size: 15px;
+      line-height: 1.7;
+      color-scheme: dark;
+      color: #c9d1d9;
+    }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3,
+    .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+      color: #e6edf3;
+      border-color: #30363d;
+    }
+    .markdown-body a { color: #58a6ff; }
+    .markdown-body pre {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+    }
+    .markdown-body code {
+      background: rgba(110,118,129,0.2);
+      border-radius: 4px;
+      color: #e6edf3;
+    }
+    .markdown-body pre code { background: none; color: #c9d1d9; }
+    .markdown-body blockquote {
+      border-left: 4px solid #58a6ff;
+      color: #8b949e;
+    }
+    .markdown-body table { border-collapse: collapse; width: 100%; }
+    .markdown-body table th { background: #0d1117; color: #e6edf3; }
+    .markdown-body table td, .markdown-body table th { border-color: #30363d; }
+    .markdown-body table tr { background: #161b22; border-color: #30363d; }
+    .markdown-body table tr:nth-child(2n) { background: #0d1117; }
+    .markdown-body hr { border-color: #30363d; }
+    .markdown-body img { border-radius: 6px; }
+
+    /* ── States ── */
+    .state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 40px;
+      color: #8b949e;
+      text-align: center;
+    }
+    .state svg { opacity: 0.3; }
+    .state p { font-size: 14px; }
+    .state .hint { font-size: 12px; color: #484f58; }
+
+    /* ── Breadcrumb ── */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #8b949e;
+      margin-bottom: 12px;
+    }
+    .breadcrumb a { color: #58a6ff; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    @media (max-width: 700px) {
+      aside { display: none; }
+      .markdown-body { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+  <h1 id="header-title">Docs Viewer</h1>
+  <span id="header-badge">0 files</span>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="sidebar-card">
+      <h2>Files</h2>
+      <ul id="file-list">
+        <li>
+          <div class="state" style="padding: 24px;">
+            <p>Loading files…</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+    <div class="breadcrumb" id="breadcrumb" style="display:none">
+      <span>Docs</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      <span id="breadcrumb-file"></span>
+    </div>
+
+    <div class="content-card">
+      <div class="content-header" id="content-header" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span id="content-filename"></span>
+        <a id="raw-link" href="#">View raw</a>
+      </div>
+      <div id="content-body">
+        <div class="state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>Select a file from the sidebar to preview it</p>
+          <p class="hint">Markdown files are rendered automatically</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const FILES = '/files';
+
+  function renderSidebar(filename) {
+    const ul = document.getElementById('file-list');
+    ul.innerHTML = `
+      <li>
+        <a href="?file=${encodeURIComponent(filename)}" class="active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span class="file-name">${filename}</span>
+        </a>
+      </li>`;
+    document.getElementById('header-badge').textContent = '1 file';
+  }
+
+  async function loadFile(filename) {
+    if (!filename || !filename.endsWith('.md')) {
+      document.getElementById('file-list').innerHTML =
+        '<li><div class="state" style="padding:24px"><p>No file specified</p><p class="hint">Add ?file=name.md to the URL</p></div></li>';
+      return;
+    }
+
+    renderSidebar(filename);
+    document.getElementById('header-title').textContent = filename;
+    document.getElementById('breadcrumb').style.display = 'flex';
+    document.getElementById('breadcrumb-file').textContent = filename;
+    document.getElementById('content-header').style.display = 'flex';
+    document.getElementById('content-filename').textContent = filename;
+    document.getElementById('raw-link').href = FILES + '/' + filename;
+    document.getElementById('content-body').innerHTML =
+      '<div class="state"><p>Loading…</p></div>';
+
+    try {
+      const res = await fetch(FILES + '/' + encodeURIComponent(filename));
+      if (!res.ok) throw new Error('Not found');
+      const md = await res.text();
+      document.getElementById('content-body').innerHTML =
+        '<article class="markdown-body">' + marked.parse(md) + '</article>';
+    } catch (e) {
+      document.getElementById('content-body').innerHTML =
+        '<div class="state"><p>Could not load file</p><p class="hint">' + filename + '</p></div>';
+    }
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  loadFile(params.get('file'));
+</script>
+</body>
+</html>
