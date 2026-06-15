@@ -8,7 +8,7 @@ metadata:
 
 ---
 # ============================================================
-# PersistentVolumeClaim — files survive pod restarts
+# PersistentVolumeClaim
 # ============================================================
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -20,8 +20,35 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
-  # storageClassName: standard   # uncomment and set to your storage class if needed
+      storage: 5Gi
+  storageClassName: openebs-hostpath
+
+---
+# ============================================================
+# Nginx ConfigMap — single port, /files/ and /api/ paths
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: static-server
+data:
+  default.conf: |
+    server {
+      listen 80;
+
+      location /files/ {
+        alias /srv/files/;
+        default_type text/plain;
+        try_files $uri =404;
+      }
+
+      location /api/ {
+        proxy_pass http://localhost:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+      }
+    }
 
 ---
 # ============================================================
@@ -46,32 +73,32 @@ spec:
     spec:
       containers:
         - name: static-server
-          image: your-registry/static-server:latest   # <-- replace with your image
+          image: birobyte1110/static-serving:master
           imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 80
-            - name: api
-              containerPort: 8080
           volumeMounts:
             - name: files
               mountPath: /srv/files
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
           resources:
             requests:
-              cpu: 10m
+              cpu: 50m
               memory: 64Mi
             limits:
               cpu: 200m
               memory: 128Mi
           livenessProbe:
             httpGet:
-              path: /
+              path: /files/
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /
+              path: /files/
               port: 80
             initialDelaySeconds: 3
             periodSeconds: 5
@@ -79,15 +106,18 @@ spec:
         - name: files
           persistentVolumeClaim:
             claimName: static-files-pvc
+        - name: nginx-config
+          configMap:
+            name: nginx-config
 
 ---
 # ============================================================
-# Service — public HTTP (port 80, via Ingress)
+# Service — single port 80
 # ============================================================
 apiVersion: v1
 kind: Service
 metadata:
-  name: static-server-http
+  name: static-server
   namespace: static-server
 spec:
   selector:
@@ -99,26 +129,7 @@ spec:
 
 ---
 # ============================================================
-# Service — internal API only (port 8080, ClusterIP)
-# Never exposed publicly via Ingress
-# ============================================================
-apiVersion: v1
-kind: Service
-metadata:
-  name: static-server-api
-  namespace: static-server
-spec:
-  type: ClusterIP
-  selector:
-    app: static-server
-  ports:
-    - name: api
-      port: 8080
-      targetPort: 8080
-
----
-# ============================================================
-# Ingress — public domain → port 80 only
+# Ingress
 # ============================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -126,29 +137,28 @@ metadata:
   name: static-server-ingress
   namespace: static-server
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"   # allow larger file uploads via API if needed
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 spec:
-  ingressClassName: nginx   # <-- adjust to your ingress class
+  ingressClassName: nginx
   tls:
     - hosts:
-        - yourdomain.com   # <-- replace with your domain
+        - yousuf.static.alefiot.xyz
       secretName: static-server-tls
   rules:
-    - host: yourdomain.com   # <-- replace with your domain
+    - host: yousuf.static.alefiot.xyz
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: static-server-http
+                name: static-server
                 port:
                   number: 80
 
 ---
 # ============================================================
-# Certificate (cert-manager) — auto TLS for your domain
-# Requires cert-manager installed in the cluster
+# Certificate
 # ============================================================
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -158,7 +168,7 @@ metadata:
 spec:
   secretName: static-server-tls
   issuerRef:
-    name: selfsigned-issuer   
+    name: selfsigned-issuer
     kind: ClusterIssuer
   dnsNames:
-    - yourdomain.com   # <-- replace with your domain
+    - yousuf.static.alefiot.xyz
